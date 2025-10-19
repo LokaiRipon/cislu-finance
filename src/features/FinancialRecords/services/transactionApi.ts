@@ -1,6 +1,3 @@
-// src/features/FinancialRecords/services/transactionApi.ts
-// This file replaces the mock API implementation with real HTTP calls using fetch, including authentication.
-
 import type {
   Transaction,
   ListTransactionsQuery,
@@ -18,7 +15,6 @@ if (!API_BASE_URL) {
 }
 
 // --- Authentication Helper ---
-// Assuming the token is stored in localStorage after login
 // Key used to store the JWT token in localStorage
 const AUTH_TOKEN_KEY = 'authToken';
 
@@ -34,29 +30,6 @@ export const getStoredAuthToken = (): string | null => {
     return null;
   }
 };
-
-/**
- * Sets the JWT token in localStorage.
- * @param token The JWT token string.
- */
-// export const setStoredAuthToken = (token: string): void => {
-//   try {
-//     localStorage.setItem(AUTH_TOKEN_KEY, token);
-//   } catch (e) {
-//     console.error("Error storing auth token in localStorage:", e);
-//   }
-// };
-
-/**
- * Removes the JWT token from localStorage (e.g., on logout).
- */
-// export const removeStoredAuthToken = (): void => {
-//   try {
-//     localStorage.removeItem(AUTH_TOKEN_KEY);
-//   } catch (e) {
-//     console.error("Error removing auth token from localStorage:", e);
-//   }
-// };
 
 // --- Helper Function ---
 const buildQueryString = (params: Record<string, any>): string => {
@@ -85,7 +58,8 @@ const apiFetch = async (url: string, options: RequestInit = {}): Promise<Respons
 
   // Add Authorization header if token exists
   if (token) {
-    mergedHeaders['Authorization'] = `Bearer ${token}`;
+    const mergedHeaders = new Headers();
+    mergedHeaders.set("Authorization", `Bearer ${token}`);
   }
 
   const fetchOptions: RequestInit = {

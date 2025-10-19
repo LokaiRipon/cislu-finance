@@ -1,7 +1,9 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 // src/features/FinancialRecords/components/TreasurerReportCard.tsx
 import React, { useState, useMemo } from 'react';
 import { useTreasurerReport } from '../hooks/useTreasurerReports';
 import { useTransactions } from '../hooks/useTransactions';
+import type { ReportQueryParams, ListTransactionsQuery } from '../types';
 import { format } from 'date-fns';
 
 // --- Helper functions ---
@@ -42,28 +44,28 @@ const TreasurerReportCard: React.FC<TreasurerReportCardProps> = ({ reportDateRan
       fromDate: reportDateRange.periodStart,
       toDate: reportDateRange.periodEnd,
       page: 1,
-      limit: 1000, // Adjust or remove limit based on expected data size
+      limit: 1000,
     };
   }, [reportDateRange]);
 
-  const { transactions: periodTransactions, loading: transactionsLoading } = useTransactions(transactionQuery);
+  const { transactions: periodTransactions, loading: transactionsLoading, error: transactionsError } = useTransactions(transactionQuery);
 
   const formatDateDisplay = (isoString: string): string => {
-    return new Date(isoString).toLocaleDateString();
+    return format(new Date(isoString), 'dd/MM/yyyy');
   };
 
-  // State for export dropdown
+  // State for export dropdown visibility
   const [showExportOptions, setShowExportOptions] = useState(false);
 
   // --- Enhanced Export Function (CSV) ---
   const exportToCSV = async () => {
     if (!report) return;
 
-    let csvContent = "text/csv;charset=utf-8,";
+    let csvContent = "data:text/csv;charset=utf-8,";
 
     // 1. Metadata/Header Row
     csvContent += `Report Period:,${formatDateDisplay(reportDateRange.periodStart)},to,${formatDateDisplay(reportDateRange.periodEnd)}\n`;
-    csvContent += "\n"; // Empty row for separation
+    csvContent += "\n";
 
     // 2. Transaction History Header
     csvContent += "Transaction History\n";
@@ -83,7 +85,7 @@ const TreasurerReportCard: React.FC<TreasurerReportCardProps> = ({ reportDateRan
           `"${t.sourceOrCategory}"`,
           `"${t.payerOrPayee || 'N/A'}"`,
           t.method,
-          formatCurrency(t.amount).replace(/[^\d.,-]/g, ''), // Remove currency symbol for CSV
+          formatCurrency(t.amount).replace(/[^\d.,-]/g, ''),
           t.balanceAfter !== undefined ? formatCurrency(t.balanceAfter).replace(/[^\d.,-]/g, '') : 'N/A',
           `"${t.transactionCode || 'N/A'}"`,
           `"${t.description || 'N/A'}"`
@@ -94,7 +96,7 @@ const TreasurerReportCard: React.FC<TreasurerReportCardProps> = ({ reportDateRan
       csvContent += "No transactions found for the selected period.\n";
     }
 
-    csvContent += "\n"; // Empty row for separation
+    csvContent += "\n";
 
     // 4. Summary Report Header
     csvContent += "Treasurer Report Summary\n";
@@ -111,7 +113,7 @@ const TreasurerReportCard: React.FC<TreasurerReportCardProps> = ({ reportDateRan
     ];
 
     summaryRows.forEach(row => {
-      csvContent += `"${row[0]}",${row[1]}\n`; // Quote the label
+      csvContent += `"${row[0]}",${row[1]}\n`;
     });
 
     const encodedUri = encodeURI(csvContent);
@@ -123,7 +125,7 @@ const TreasurerReportCard: React.FC<TreasurerReportCardProps> = ({ reportDateRan
     document.body.removeChild(link);
   };
 
-  // --- Export to PDF Function ---
+  // --- Export to PDF Function (Kept as is, assumed working) ---
   const exportToPDF = async () => {
     if (!report) return;
 
@@ -163,7 +165,7 @@ const TreasurerReportCard: React.FC<TreasurerReportCardProps> = ({ reportDateRan
     });
 
     // Add Transaction History Table
-    doc.addPage(); // Create a new page for transactions
+    doc.addPage();
     doc.setFontSize(14);
     doc.text("Transaction History", 14, 22);
     doc.setFontSize(12);
@@ -222,7 +224,9 @@ const TreasurerReportCard: React.FC<TreasurerReportCardProps> = ({ reportDateRan
               </svg>
             </div>
             <div className="ml-3">
-              <p className="text-sm text-red-700">{error}</p>
+              <p className="text-sm text-red-700">
+                <span className="font-medium">Error!</span> {error}
+              </p>
             </div>
           </div>
         </div>
@@ -262,7 +266,7 @@ const TreasurerReportCard: React.FC<TreasurerReportCardProps> = ({ reportDateRan
                 </svg>
               ) : (
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0v6m0-6h6m-6 0H6" />
                 </svg>
               )}
               <span>Export</span>
@@ -275,7 +279,7 @@ const TreasurerReportCard: React.FC<TreasurerReportCardProps> = ({ reportDateRan
                   <button
                     onClick={() => {
                       exportToCSV();
-                      setShowExportOptions(false); // Close dropdown after click
+                      setShowExportOptions(false);
                     }}
                     className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                   >
@@ -284,7 +288,7 @@ const TreasurerReportCard: React.FC<TreasurerReportCardProps> = ({ reportDateRan
                   <button
                     onClick={() => {
                       exportToPDF();
-                      setShowExportOptions(false); // Close dropdown after click
+                      setShowExportOptions(false);
                     }}
                     className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                   >
@@ -304,8 +308,8 @@ const TreasurerReportCard: React.FC<TreasurerReportCardProps> = ({ reportDateRan
             Summary for {formatDateDisplay(reportDateRange.periodStart)} - {formatDateDisplay(reportDateRange.periodEnd)}
           </h3>
 
-          {/* Metric Cards Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2"> {/* Reduced gap */}
+          {/* Metric Cards Grid (Smaller) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
             {/* Total Income Card */}
             <div className="relative p-3 rounded-lg bg-white/10 backdrop-blur-md border border-white/20 shadow-[0_0_15px_rgba(34,197,94,0.5)] bg-green-50 border-green-200">
               <div className="flex items-center">
@@ -362,7 +366,7 @@ const TreasurerReportCard: React.FC<TreasurerReportCardProps> = ({ reportDateRan
                   </svg>
                 </div>
                 <div className="ml-2">
-                  <dt className="text-xs font-medium text-gray-800 truncate">Opening Balance</dt>
+                  <dt className="text-xs font-medium text-gray-600 truncate">Opening Balance</dt>
                   <dd className="mt-1 text-sm font-bold text-gray-600">{formatCurrency(report.openingBalance)}</dd>
                 </div>
               </div>

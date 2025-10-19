@@ -1,7 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+// src/features/FinancialRecords/hooks/useTransactions.ts
+import { useState, useEffect, useRef } from 'react'; // Import useRef
 import type { ListTransactionsQuery, ListTransactionsResponse, Transaction } from '../types';
 import { listTransactions } from '../services/transactionApi';
 
+// Define the state structure for this hook
 interface UseTransactionsState {
   transactions: Transaction[];
   total: number;
@@ -11,57 +13,55 @@ interface UseTransactionsState {
   error: string | null;
 }
 
+// Initial state when the hook first loads
 const initialState: UseTransactionsState = {
   transactions: [],
   total: 0,
   page: 1,
-  limit: 20,
+  limit: 20, // Default limit from the backend
   loading: false,
   error: null,
 };
 
+/**
+ * Custom hook to manage the list of transactions.
+ * Fetches data using the mock API and provides state management.
+ * @param query Optional filters for the transaction list (e.g., date range, type).
+ * @returns State object containing transactions, loading status, error, and a refetch function.
+ */
 export const useTransactions = (query?: ListTransactionsQuery) => {
   const [state, setState] = useState<UseTransactionsState>(initialState);
-  // Use a ref to store the query to avoid stale closure issues in refetch
-  const queryRef = useRef(query);
+  // --- NEW: Flag to track if initial fetch has been attempted ---
+  const hasAttemptedInitialFetch = useRef(false);
 
-  useEffect(() => {
-    queryRef.current = query; // Update the ref whenever query prop changes
-  }, [query]);
-
-  // Refetch function
+  // Refetch function allows components to trigger a manual refresh
   const refetch = () => {
-    const currentQuery = queryRef.current; // Use the query stored in the ref
-    const fetchData = async () => {
-      try {
-        setState(prev => ({ ...prev, loading: true, error: null }));
-        const response: ListTransactionsResponse = await listTransactions(currentQuery);
-        setState({
-          transactions: response.transactions,
-          total: response.total,
-          page: response.page,
-          limit: response.limit,
-          loading: false,
-          error: null,
-        });
-      } catch (err) {
-        console.error("Error refetching transactions:", err);
-        setState(prev => ({
-          ...prev,
-          loading: false,
-          error: (err as Error).message || "An error occurred while fetching transactions.",
-        }));
-      }
-    };
-    fetchData(); // Call the fetch logic directly inside refetch
+    // Reset the flag on manual refetch to allow fetching again
+    hasAttemptedInitialFetch.current = false;
+    setState(prev => ({ ...prev, loading: true, error: null }));
   };
 
-  // Initial fetch effect - only runs on mount and when query changes
+  // useEffect runs when the hook mounts or when `query` changes
   useEffect(() => {
+    // --- CHECK THE FLAG ---
+    // If we've already tried the initial fetch and it failed, don't auto-retry
+    if (hasAttemptedInitialFetch.current && state.error) {
+      console.log("Skipping auto-fetch due to previous error. Use refetch() to try again.");
+      return;
+    }
+
     const fetchData = async () => {
+      // --- SET THE FLAG ---
+      hasAttemptedInitialFetch.current = true; // Mark that we are attempting the fetch
+
       try {
+        // Set loading state
         setState(prev => ({ ...prev, loading: true, error: null }));
+
+        // Call the mock API service
         const response: ListTransactionsResponse = await listTransactions(query);
+
+        // Update state with the fetched data
         setState({
           transactions: response.transactions,
           total: response.total,
@@ -71,20 +71,27 @@ export const useTransactions = (query?: ListTransactionsQuery) => {
           error: null,
         });
       } catch (err) {
+        // Handle errors (e.g., network issues, API errors)
         console.error("Error fetching transactions:", err);
+        const errorMessage = (err as Error).message || "An error occurred while fetching transactions.";
+
+        // --- UPDATE STATE WITH ERROR ---
         setState(prev => ({
           ...prev,
           loading: false,
-          error: (err as Error).message || "An error occurred while fetching transactions.",
+          // --- PRESERVE PREVIOUS DATA ON ERROR ---
+          // Keep existing transactions if they exist, otherwise show empty array
+          // transactions: [], // Uncomment this line if you want to clear data on error
+          error: errorMessage,
         }));
       }
     };
 
     fetchData();
-  }, [query]); // Only depend on query for the initial fetch
+  }, [query, state.error]); // Re-run when query object changes OR when error state changes (important for refetch)
 
   return {
-    ...state,
-    refetch, // Return the new refetch function
+    ...state, // Spread all state properties (transactions, total, page, limit, loading, error)
+    refetch,   // Provide the refetch function to components
   };
 };

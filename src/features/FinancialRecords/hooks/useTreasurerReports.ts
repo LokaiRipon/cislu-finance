@@ -1,6 +1,6 @@
 // src/features/FinancialRecords/hooks/useTreasurerReport.ts
-import { useState, useEffect } from 'react';
-import type { TreasurerReport, ReportQueryParams } from '../types';
+import { useState, useEffect, useRef } from 'react'; // Import useRef
+import type { ReportQueryParams, TreasurerReport } from '../types';
 import { generateTreasurerReport } from '../services/transactionApi';
 
 // Define the state structure for this hook
@@ -20,36 +20,40 @@ const initialState: UseTreasurerReportState = {
 /**
  * Custom hook to manage the treasurer report data.
  * Fetches data using the mock API and provides state management.
- * @param params Optional periodStart and periodEnd dates for the report. If null or missing required dates, no fetch occurs.
+ * @param params Optional periodStart and periodEnd dates for the report.
  * @returns State object containing the report, loading status, error, and a refetch function.
  */
 export const useTreasurerReport = (params: ReportQueryParams | null) => {
   const [state, setState] = useState<UseTreasurerReportState>(initialState);
+  // --- NEW: Flag to track if initial fetch has been attempted ---
+  const hasAttemptedInitialFetch = useRef(false);
 
-  // Refetch function allows components to trigger a refresh with the *current* params
+  // Refetch function allows components to trigger a manual refresh
   const refetch = () => {
-    // Only refetch if params are valid
-    if (params && params.periodStart && params.periodEnd) {
-      setState(prev => ({ ...prev, loading: true, error: null }));
-    } else {
-      console.warn("Cannot refetch: Missing periodStart or periodEnd in params.");
-      // Optionally set an error state here if refetch is called without valid params
-      // setState(prev => ({ ...prev, error: "Cannot refetch: Missing required dates." }));
-    }
+    // Reset the flag on manual refetch to allow fetching again
+    hasAttemptedInitialFetch.current = false;
+    setState(prev => ({ ...prev, loading: true, error: null }));
   };
 
   // useEffect runs when the hook mounts or when `params` changes
-  // CRITICAL: Only fetch if params is not null and contains both dates
   useEffect(() => {
+    // --- CHECK THE FLAG ---
+    // If we've already tried the initial fetch and it failed, don't auto-retry
+    if (hasAttemptedInitialFetch.current && state.error) {
+      console.log("Skipping auto-fetch for treasurer report due to previous error. Use refetch() to try again.");
+      return;
+    }
+
     const fetchData = async () => {
       if (!params || !params.periodStart || !params.periodEnd) {
-        // Do not fetch if params is null or missing required dates
-        console.log("useTreasurerReport: Skipping fetch - params incomplete or null");
+        // Don't fetch if params are not provided (e.g., on initial load)
         return;
       }
 
+      // --- SET THE FLAG ---
+      hasAttemptedInitialFetch.current = true; // Mark that we are attempting the fetch
+
       try {
-        console.log("useTreasurerReport: Fetching report with params:", params);
         // Set loading state
         setState(prev => ({ ...prev, loading: true, error: null }));
 
@@ -65,16 +69,22 @@ export const useTreasurerReport = (params: ReportQueryParams | null) => {
       } catch (err) {
         // Handle errors (e.g., network issues, API errors)
         console.error("Error fetching treasurer report:", err);
+        const errorMessage = (err as Error).message || "An error occurred while fetching the report.";
+
+        // --- UPDATE STATE WITH ERROR ---
         setState(prev => ({
           ...prev,
           loading: false,
-          error: (err as Error).message || "An error occurred while fetching the report.",
+          // --- PRESERVE PREVIOUS REPORT ON ERROR ---
+          // Keep existing report if it exists, otherwise show null
+          // report: null, // Uncomment this line if you want to clear data on error
+          error: errorMessage,
         }));
       }
     };
 
     fetchData();
-  }, [params]); // Re-run when params object changes (date range changes)
+  }, [params, state.error]); // Re-run when params object changes OR when error state changes (important for refetch)
 
   return {
     ...state, // Spread all state properties (report, loading, error)
